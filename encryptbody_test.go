@@ -1,9 +1,11 @@
-package plugin_rewritebody
+package plugin_encrypt_body
 
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -28,8 +30,8 @@ func TestServeHTTP(t *testing.T) {
 					Replacement: "bar",
 				},
 			},
-			resBody:    "foo is the new bar",
-			expResBody: "bar is the new bar",
+			resBody:    "{\"foo\":200, \"msg\": \"is the new bar\"}",
+			expResBody: "{\"foo\":200,\"msg\":\"is the new bar\"}",
 		},
 		{
 			desc: "should replace foo by bar, then by foo",
@@ -119,9 +121,32 @@ func TestServeHTTP(t *testing.T) {
 			if _, exists := recorder.Result().Header["Content-Length"]; exists {
 				t.Error("The Content-Length Header must be deleted")
 			}
+			body := recorder.Body.Bytes()
+			fmt.Printf("body:%x\n", body)
+			var resultMap map[string]interface{}
+			err = json.Unmarshal(body, &resultMap)
+			if err != nil {
+				log.Printf("json:%s, 解析失败: %s\n", body, err.Error())
+				return
+			}
+			dataValue, ok := resultMap["result"].(string)
+			if !ok {
+				log.Printf("result 属性不是字符串\n")
+				return
+			}
+			fmt.Printf("match result:%v\n", dataValue)
+			// 对 result 属性的值进行
+			decryptStr, err := decryptWithAES([]byte(dataValue))
+			if err != nil {
+				log.Printf("traefik-encrypt-body：加密失败%v\n", err.Error())
+				return
+			}
 
-			if !bytes.Equal([]byte(test.expResBody), recorder.Body.Bytes()) {
-				t.Errorf("got body %q, want %q", recorder.Body.Bytes(), test.expResBody)
+			// 将加密后的值放回到 data 属性中
+			resultMap["result"] = decryptStr
+			resultJson, err := json.Marshal(resultMap)
+			if !bytes.Equal(resultJson, recorder.Body.Bytes()) {
+				t.Errorf("got body %q, want %q", recorder.Body.Bytes(), body)
 			}
 		})
 	}

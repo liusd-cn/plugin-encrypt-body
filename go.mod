@@ -1,3 +1,3 @@
-module github.com/traefik/plugin-rewritebody
+module github.com/liusd-cn/plugin-encrypt-body
 
-go 1.15
+go 1.21

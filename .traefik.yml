@@ -1,7 +1,7 @@
-displayName: Rewrite Body
-summary: Rewrites the HTTP response body by replacing a search regex by a replacement string.
+displayName: Encrypt Body
+summary: Encrypt the HTTP response body by replacing a search regex by a replacement string.
 type: middleware
-import: github.com/traefik/plugin-rewritebody
+import: github.com/traefik/plugin-encrypt-body
 compatibility: TODO
 testData:
   lastModified: true

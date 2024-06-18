@@ -1,6 +1,6 @@
 # Rewrite Body
 
-Rewrite body is a middleware plugin for [Traefik](https://github.com/traefik/traefik) which rewrites the HTTP response body by replacing a search regex by a replacement string.
+Encrypt body is a middleware plugin for [Traefik](https://github.com/traefik/traefik) which encrypt the HTTP response body by replacing a search regex by a encrypt and replacement string.
 
 ## Configuration
 
@@ -11,13 +11,13 @@ Rewrite body is a middleware plugin for [Traefik](https://github.com/traefik/tra
   token = "xxxx"
 
 [experimental.plugins.rewritebody]
-  modulename = "github.com/traefik/plugin-rewritebody"
-  version = "v0.3.1"
+  modulename = "github.com/liusd-cn/plugin-encrypt-body"
+  version = "v0.0.1"
 ```
 
 ### Dynamic
 
-To configure the `Rewrite Body` plugin you should create a [middleware](https://doc.traefik.io/traefik/middlewares/overview/) in 
+To configure the `Encrypt Body` plugin you should create a [middleware](https://doc.traefik.io/traefik/middlewares/overview/) in 
 your dynamic configuration as explained [here](https://doc.traefik.io/traefik/middlewares/overview/).
 The following example creates  and uses the `rewritebody` middleware plugin to replace all `foo` occurrences by `bar` in the HTTP response body.
 
