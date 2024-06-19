@@ -1,7 +1,7 @@
 displayName: Encrypt Body
 summary: Encrypt the HTTP response body by replacing a search regex by a replacement string.
 type: middleware
-import: github.com/traefik/plugin-encrypt-body
+import: github.com/liusd-cn/plugin-encrypt-body
 compatibility: TODO
 testData:
   lastModified: true
