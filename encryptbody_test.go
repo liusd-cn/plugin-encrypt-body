@@ -3,6 +3,7 @@ package plugin_encrypt_body
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -21,17 +22,24 @@ func TestServeHTTP(t *testing.T) {
 		resBody         string
 		expResBody      string
 		expLastModified bool
+		contentType     string
 	}{
 		{
 			desc: "should replace foo by bar",
 			rewrites: []Rewrite{
 				{
-					Regex:       "foo",
+					Regex:       "result",
 					Replacement: "bar",
 				},
+				{
+					Regex: "msg",
+				},
 			},
-			resBody:    "{\"foo\":200, \"msg\": \"is the new bar\"}",
-			expResBody: "{\"foo\":200,\"msg\":\"is the new bar\"}",
+			//resBody: "{\"foo\":200, \"msg\": \"is the new bar\", \"result\": \"shuyo\" }",
+			resBody:    "{\"foo\":200, \"msg\": \"is the new bar\", \"result\": {\"user\": \"zhai\", \"中文@!#$131ffA\": \"shuyo\"} }",
+			expResBody: "{\"foo\":200, \"msg\": \"is the new bar\", \"result\": {\\\"user\\\": \\\"zhai\\\", \\\"中文@!#$131ffA\\\": \\\"shuyo\\\"} }",
+			//expResBody: "{\"foo\":200,\"msg\":\"is the new bar\",\"result\":\"shuyo\"}",
+			contentType: "application/json",
 		},
 		{
 			desc: "should replace foo by bar, then by foo",
@@ -97,6 +105,7 @@ func TestServeHTTP(t *testing.T) {
 
 			next := func(rw http.ResponseWriter, req *http.Request) {
 				rw.Header().Set("Content-Encoding", test.contentEncoding)
+				rw.Header().Set("Content-Type", test.contentType)
 				rw.Header().Set("Last-Modified", "Thu, 02 Jun 2016 06:01:08 GMT")
 				rw.Header().Set("Content-Length", strconv.Itoa(len(test.resBody)))
 				rw.WriteHeader(http.StatusOK)
@@ -122,34 +131,90 @@ func TestServeHTTP(t *testing.T) {
 				t.Error("The Content-Length Header must be deleted")
 			}
 			body := recorder.Body.Bytes()
-			fmt.Printf("body:%x\n", body)
+
+			fmt.Printf("body:%q \n", body)
 			var resultMap map[string]interface{}
 			err = json.Unmarshal(body, &resultMap)
 			if err != nil {
-				log.Printf("json:%s, 解析失败: %s\n", body, err.Error())
+				log.Printf("json:%s, \n 解析失败: %s\n", body, err.Error())
 				return
 			}
-			dataValue, ok := resultMap["result"].(string)
-			if !ok {
-				log.Printf("result 属性不是字符串\n")
-				return
-			}
-			fmt.Printf("match result:%v\n", dataValue)
-			// 对 result 属性的值进行
-			decryptStr, err := decryptWithAES([]byte(dataValue))
-			if err != nil {
-				log.Printf("traefik-encrypt-body：加密失败%v\n", err.Error())
-				return
-			}
+			dataValue, _ := resultMap["result"].(string)
 
-			// 将加密后的值放回到 data 属性中
-			resultMap["result"] = decryptStr
+			fmt.Printf("match result: %s\n", dataValue)
+			// 对 result 属性的值进行解密
+			decodeString, _ := base64.StdEncoding.DecodeString(dataValue)
+
+			decryptStr, err := decryptBySM2(decodeString)
+			log.Println("解密后的明文：", string(decryptStr))
+
+			resultMap["result"] = string(decryptStr)
 			resultJson, err := json.Marshal(resultMap)
-			if !bytes.Equal(resultJson, recorder.Body.Bytes()) {
-				t.Errorf("got body %q, want %q", recorder.Body.Bytes(), body)
+			if !bytes.Equal(resultJson, []byte(test.expResBody)) {
+				t.Errorf("got body %s\n but want %s", resultJson, test.expResBody)
 			}
 		})
 	}
+}
+
+func TestSm4(t *testing.T) {
+	text := "112333"
+	encrypt, err := SM4Encrypt([]byte(text))
+	if err != nil {
+		println(err)
+	}
+	log.Printf("encrypt text is %x \n", encrypt)
+	log.Printf("encrypt base64 is %s\n", base64.StdEncoding.EncodeToString(encrypt))
+
+	decrypt, err := SM4Decrypt(encrypt)
+	if err != nil {
+		println(err)
+	}
+	log.Printf("decrypt text is %s \n", decrypt)
+}
+
+// sm2解密
+func TestDecryptSM2(t *testing.T) {
+	text := "BKq0igwhiZMcGy1Ow1pKZHizX3aGGYrkB/vQMCZg4UocS9hSphcxbNSWLoao91H61ZQfLmfBYxfQiP+jKJ0q1DtzqgmHTZ1URL1eQvx6PNof7i3VKCUDMLiI7CzWowNEiJ0gcE5fJw=="
+	decodeString, err := base64.StdEncoding.DecodeString(text)
+	if err != nil {
+		println(err)
+	}
+
+	fmt.Printf("待解密文案: %s \n", decodeString)
+	decrypt, err := decryptBySM2(decodeString)
+	if err != nil {
+		println(err)
+	}
+	fmt.Printf("encrpyt is %s\n", decrypt)
+}
+func TestEncryptByBySM2(t *testing.T) {
+	str := "ffff112233"
+	cipherText, err := EncryptByBySM2([]byte(str))
+	if err != nil {
+		log.Println(err)
+	}
+	log.Printf("text is :%v\n", cipherText)
+	toString := base64.StdEncoding.EncodeToString(cipherText)
+	log.Printf("cipher base64 is: %s\n", toString)
+	sm2, err := decryptBySM2(cipherText)
+	log.Printf("decrypt text: %s \n", sm2)
+}
+
+// AES解密
+func TestAesDecryptByCBC(t *testing.T) {
+	text := "FxkN9RuqSdvJOirKz/xqDA=="
+	fmt.Printf("待解密文案: %v \n", text)
+	decrypt := AesDecryptByCBC(text, key)
+	fmt.Printf("解密结果: %v \n", decrypt)
+}
+func TestBase64(t *testing.T) {
+	data := "ff112233"
+	encrypt := EncryptStrSM2([]byte(data))
+	log.Printf("encrypt str is %x \n", encrypt)
+	encodeToString := base64.StdEncoding.EncodeToString(encrypt)
+	fmt.Println(encodeToString)
+
 }
 
 func TestNew(t *testing.T) {
